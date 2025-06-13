@@ -9,6 +9,7 @@ import org.springframework.messaging.handler.annotation.Header
 import org.springframework.messaging.handler.annotation.MessageMapping
 import org.springframework.messaging.handler.annotation.Payload
 import org.springframework.messaging.handler.annotation.SendTo
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Controller
 import java.math.BigDecimal
 import java.security.Principal
@@ -24,9 +25,9 @@ class AuctionSocketController(
     fun handleBid(
         @DestinationVariable lotId: Long,
         @Payload bid: BidMessage,
-        @Header("simpUser") user: Principal
     ): Lot {
-        val lot = auctionService.placeBid(lotId, bid.amount, userRepository.findByUsername(user.name)!!)
+        val auth = SecurityContextHolder.getContext().authentication
+        val lot = auctionService.placeBid(lotId, bid.amount, userRepository.findByUsername(auth.name)!!)
         return lot
     }
 }

@@ -1,5 +1,6 @@
 package com.example.auctionserver.config
 
+import com.example.auctionserver.repository.UserRepository
 import com.example.auctionserver.security.JwtTokenProvider
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.HttpStatusEntryPoint
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.stereotype.Component
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
@@ -25,13 +27,15 @@ import org.springframework.security.web.authentication.www.BasicAuthenticationFi
 
 @Configuration
 @EnableWebSecurity
-class SecurityConfig {
+class SecurityConfig(private val jwtTokenProvider: JwtTokenProvider,
+                            private val userRepository: UserRepository) {
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
             .cors { it.configurationSource(corsConfigurationSource()) }
             .csrf { it.disable() }
+            .addFilterBefore(JwtAuthenticationFilter(jwtTokenProvider, userRepository), UsernamePasswordAuthenticationFilter::class.java)
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .requestMatchers("/api/auth/**").permitAll()
@@ -48,17 +52,9 @@ class SecurityConfig {
                 res.writer.write("""{"error": "Unauthorized"}""")
               }
             }
-//            }.addFilterBefore(RequestLoggingFilter(), BasicAuthenticationFilter::class.java)
 
         return http.build()
     }
-//@Bean
-//fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
-//    http.cors { it.configurationSource(corsConfigurationSource()) }
-//        .csrf { it.disable() }
-//        .authorizeHttpRequests { it.anyRequest().permitAll() }
-//    return http.build()
-//}
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
@@ -78,6 +74,45 @@ class SecurityConfig {
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)
         return source
+    }
+
+    @Component
+    class JwtAuthenticationFilter(
+        private val jwtTokenProvider: JwtTokenProvider,
+        private val userRepository: UserRepository
+    ) : OncePerRequestFilter() {
+
+        override fun doFilterInternal(
+            request: HttpServletRequest,
+            response: HttpServletResponse,
+            filterChain: FilterChain
+        ) {
+            logger.info("Incoming request to: ${request.requestURI}")
+            logger.info("Headers: ${request.headerNames.toList()}")
+
+            val authHeader = request.getHeader("Authorization")
+            logger.info("Auth header: $authHeader")
+
+            try {
+                val token = extractToken(request)
+                println("Token: $token")
+                if (token != null && jwtTokenProvider.validateToken(token)) {
+                    val auth = jwtTokenProvider.getAuthentication(token, userRepository)
+                    SecurityContextHolder.getContext().authentication = auth
+                    logger.info("Authenticated user: ${auth.name}")
+                }
+            } catch (ex: Exception) {
+                logger.error("Failed to set authentication", ex)
+            }
+            filterChain.doFilter(request, response)
+        }
+
+        private fun extractToken(request: HttpServletRequest): String? {
+            val header = request.getHeader("Authorization")
+            return if (header?.startsWith("Bearer ") == true) {
+                header.substring(7)
+            } else null
+        }
     }
 
     @Component
@@ -103,36 +138,6 @@ class SecurityConfig {
             }
         }
     }
-
-//    @Component
-//    class JwtAuthenticationFilter(
-//        private val jwtTokenProvider: JwtTokenProvider
-//    ) : OncePerRequestFilter() {
-//
-//        override fun doFilterInternal(
-//            request: HttpServletRequest,
-//            response: HttpServletResponse,
-//            filterChain: FilterChain
-//        ) {
-//            try {
-//                val token = extractToken(request)
-//                if (token != null && jwtTokenProvider.validateToken(token)) {
-//                    val auth = jwtTokenProvider.getAuthentication(token)
-//                    SecurityContextHolder.getContext().authentication = auth
-//                }
-//            } catch (ex: Exception) {
-//                logger.error("Failed to set authentication", ex)
-//            }
-//            filterChain.doFilter(request, response)
-//        }
-//
-//        private fun extractToken(request: HttpServletRequest): String? {
-//            val header = request.getHeader("Authorization")
-//            return if (header?.startsWith("Bearer ") == true) {
-//                header.substring(7)
-//            } else null
-//        }
-//    }
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()

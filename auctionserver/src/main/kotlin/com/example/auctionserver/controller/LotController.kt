@@ -24,13 +24,13 @@ class LotController(
 ) {
 
     @GetMapping("/")
-    fun lots(@AuthenticationPrincipal user: User): ResponseEntity<List<Lot>> {
+    fun lots(): ResponseEntity<List<Lot>> {
         println("Calling list of lots")
         return ResponseEntity.ok(auctionService.getAllLots())
     }
 
     @PostMapping("/")
-    fun createLot(@RequestBody dto: CreateLotDto, @AuthenticationPrincipal user: User): ResponseEntity<Lot> {
+    fun createLot(@RequestBody dto: CreateLotDto, user: User): ResponseEntity<Lot> {
         println("Calling creating of lots")
         val lot = auctionService.createLot(dto, user)
         notifyLotUpdate(lot)
@@ -41,7 +41,7 @@ class LotController(
     fun placeBid(
         @PathVariable lotId: Long,
         @RequestBody amount: BigDecimal,
-        @AuthenticationPrincipal user: User
+        user: User
     ): ResponseEntity<Lot> {
         val lot = auctionService.placeBid(lotId, amount, user)
         notifyLotUpdate(lot)
@@ -49,14 +49,14 @@ class LotController(
     }
 
     @PostMapping("/{lotId}/close")
-    fun closeLot(@PathVariable lotId: Long, @AuthenticationPrincipal user: User): ResponseEntity<Lot> {
+    fun closeLot(@PathVariable lotId: Long, user: User): ResponseEntity<Lot> {
         val lot = auctionService.closeLot(lotId, user)
         notifyLotUpdate(lot)
         return ResponseEntity.ok(lot)
     }
 
     @PostMapping("/{lotId}/finalize")
-    fun finalizeLot(@PathVariable lotId: Long, @AuthenticationPrincipal user: User): ResponseEntity<Lot> {
+    fun finalizeLot(@PathVariable lotId: Long, user: User): ResponseEntity<Lot> {
         val lot = auctionService.finalizeLot(lotId, user)
         notifyLotUpdate(lot)
         return ResponseEntity.ok(lot)
