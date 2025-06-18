@@ -91,6 +91,21 @@
 </div>
 
 <div class="panel">
+    <h2>Get Bids for Lot</h2>
+    <input type="number" id="bidsLotId" placeholder="Lot ID" value="1">
+    <button onclick="getBids()">Get Bids</button>
+    <div id="bidsList" class="lot-list"></div>
+</div>
+
+<div class="panel">
+    <h2>Lot Actions</h2>
+    <input type="number" id="actionLotId" placeholder="Lot ID">
+    <button onclick="finalizeLot()">Finalize Lot (60s to close)</button>
+    <button onclick="closeLot()">Close Lot Now</button>
+    <div id="lotActionStatus"></div>
+</div>
+
+<div class="panel">
     <h2>Messages</h2>
     <div id="messages"></div>
 </div>
@@ -119,57 +134,6 @@
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // Регистрация
-    // async function register() {
-    // const username = document.getElementById('regUsername').value;
-    // const password = document.getElementById('regPassword').value;
-    // const confirmPassword = document.getElementById('regConfirmPassword').value;
-
-    // if (password !== confirmPassword) {
-    //     document.getElementById('regStatus').textContent = 'Passwords do not match';
-    //     logMessage('Registration error: Passwords do not match', 'error');
-    //     return;
-    // }
-
-    // try {
-    //     const response = await fetch('http://localhost:8080/api/auth/register', {
-    //         method: 'POST',
-    //         headers: {
-    //             'Content-Type': 'application/json',
-    //             'Accept': 'application/json'
-    //         },
-    //         body: JSON.stringify({ username, password }),
-    //         credentials: 'include' // Add this for cookies if using CSRF
-    //     });
-
-    //     console.log('Response status:', response.status); // Debug log
-    //     console.log(JSON.stringify({ username, password }))
-        
-    //     if (response.status === 403) {
-    //         throw new Error('Forbidden - check CORS/CSRF configuration');
-    //     }
-
-    //     const data = await response.json();
-        
-    //     if (!response.ok) {
-    //         throw new Error(data.message || 'Registration failed');
-    //     }
-
-    //     jwtToken = data.token;
-    //     document.getElementById('jwtToken').textContent = `JWT: ${jwtToken}`;
-    //     document.getElementById('regStatus').textContent = 'Registered successfully';
-    //     logMessage('Registration successful', 'info');
-        
-    //     // Switch to login tab
-    //     switchTab('login');
-    //     document.getElementById('username').value = username;
-    //     document.getElementById('password').value = password;
-    // } catch (error) {
-    //     console.error('Registration error:', error); // Debug log
-    //     document.getElementById('regStatus').textContent = 'Registration failed';
-    //     logMessage(`Registration error: ${error.message}`, 'error');
-    // }
-    // }
     async function register() {
     const username = document.getElementById('regUsername').value;
     const password = document.getElementById('regPassword').value;
@@ -339,27 +303,37 @@
         }
     }
 
-    // Подключение к WebSocket
     function connect() {
-        if (!jwtToken) {
-            logMessage('Please login first', 'error');
-            return;
+    if (!jwtToken) {
+        logMessage('Please login first', 'error');
+        return;
+    }
+
+    const socket = new SockJS('http://localhost:8080/ws-auction');
+    stompClient = Stomp.over(socket);
+
+    // Добавьте обработку ошибок подключения
+    stompClient.onStompError = function(frame) {
+        logMessage(`STOMP protocol error: ${frame.headers.message}`, 'error');
+    };
+
+    stompClient.connect(
+        { 
+            'Authorization': `Bearer ${jwtToken}`,
+            'heart-beat': '10000,10000' // Добавьте heartbeat
+        },
+        function(frame) {
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            logMessage('WebSocket connected', 'info');
+        },
+        function(error) {
+            document.getElementById('connectionStatus').textContent = 'Connection failed';
+            logMessage(`WebSocket error: ${error}`, 'error');
+            
+            // Попробуйте переподключиться через 5 секунд
+            setTimeout(connect, 5000);
         }
-
-        const socket = new SockJS('http://localhost:8080/ws-auction');
-        stompClient = Stomp.over(socket);
-
-        stompClient.connect(
-            { 'Authorization': `Bearer ${jwtToken}` },
-            function(frame) {
-                document.getElementById('connectionStatus').textContent = 'Connected';
-                logMessage('WebSocket connected', 'info');
-            },
-            function(error) {
-                document.getElementById('connectionStatus').textContent = 'Connection failed';
-                logMessage(`WebSocket error: ${error}`, 'error');
-            }
-        );
+    );
     }
 
     function disconnect() {
@@ -389,6 +363,7 @@
             function(message) {
                 const lot = JSON.parse(message.body);
                 logMessage(`Lot update: ${lot.title}, Current price: ${lot.currentPrice}, Status: ${lot.status}`, 'bid');
+                getBids();
             }
         );
 
@@ -403,24 +378,178 @@
         }
     }
 
-    // Размещение ставки
     function placeBid() {
-        if (!stompClient || !stompClient.connected) {
-            logMessage('Not connected to WebSocket', 'error');
-            return;
+    if (!stompClient || !stompClient.connected) {
+        logMessage('WebSocket not connected', 'error');
+        return;
+    }
+
+    const lotId = document.getElementById('lotId').value;
+    const amount = parseFloat(document.getElementById('bidAmount').value);
+
+    stompClient.send(
+        `/app/lot/${lotId}/bid`,
+        {},
+        JSON.stringify({ amount: amount })
+    );
+    }
+
+    async function getBids() {
+    if (!jwtToken) {
+        logMessage('Please login first', 'error');
+        return;
+    }
+
+    const lotId = document.getElementById('bidsLotId').value;
+    if (!lotId) {
+        logMessage('Please enter Lot ID', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`http://localhost:8080/api/lots/${lotId}/bids`, {
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get bids: ${response.status}`);
         }
 
-        const lotId = document.getElementById('lotId').value;
-        const amount = parseFloat(document.getElementById('bidAmount').value);
-
-        stompClient.send(
-            `/app/lot/${lotId}/bid`,
-            { 'Authorization': `Bearer ${jwtToken}` },
-            JSON.stringify({ amount: amount })
-        );
-
-        logMessage(`Bid placed: ${amount}`, 'info');
+        const bids = await response.json();
+        renderBidsList(bids);
+        logMessage(`Loaded ${bids.length} bids for lot ${lotId}`, 'info');
+    } catch (error) {
+        logMessage(`Error loading bids: ${error.message}`, 'error');
     }
+}
+
+function renderBidsList(bids) {
+    const bidsListDiv = document.getElementById('bidsList');
+    bidsListDiv.innerHTML = '';
+
+    if (bids.length === 0) {
+        bidsListDiv.innerHTML = '<p>No bids available for this lot</p>';
+        return;
+    }
+
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    
+    // Создаем заголовок таблицы
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    ['Amount', 'Bidder', 'Time'].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        th.style.border = '1px solid #ddd';
+        th.style.padding = '8px';
+        th.style.textAlign = 'left';
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // Создаем тело таблицы
+    const tbody = document.createElement('tbody');
+    bids.forEach(bid => {
+        const row = document.createElement('tr');
+        
+        const amountCell = document.createElement('td');
+        amountCell.textContent = bid.amount;
+        amountCell.style.border = '1px solid #ddd';
+        amountCell.style.padding = '8px';
+        row.appendChild(amountCell);
+        
+        const bidderCell = document.createElement('td');
+        bidderCell.textContent = bid.bidder;
+        bidderCell.style.border = '1px solid #ddd';
+        bidderCell.style.padding = '8px';
+        row.appendChild(bidderCell);
+        
+        const timeCell = document.createElement('td');
+        timeCell.textContent = new Date(bid.timestamp).toLocaleString();
+        timeCell.style.border = '1px solid #ddd';
+        timeCell.style.padding = '8px';
+        row.appendChild(timeCell);
+        
+        tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    
+    bidsListDiv.appendChild(table);
+}
+
+async function finalizeLot() {
+    if (!jwtToken) {
+        logMessage('Please login first', 'error');
+        return;
+    }
+
+    const lotId = document.getElementById('actionLotId').value;
+    if (!lotId) {
+        logMessage('Please enter Lot ID', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`http://localhost:8080/api/lots/${lotId}/finalize`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${jwtToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to finalize lot: ${response.status}`);
+        }
+
+        const lot = await response.json();
+        document.getElementById('lotActionStatus').textContent = `Lot ${lotId} will close in 60 seconds`;
+        logMessage(`Lot ${lotId} is finalizing. Will close at ${new Date(lot.endTime).toLocaleString()}`, 'info');
+        loadLots(); // Обновляем список лотов
+    } catch (error) {
+        document.getElementById('lotActionStatus').textContent = 'Failed to finalize lot';
+        logMessage(`Error finalizing lot: ${error.message}`, 'error');
+    }
+}
+
+async function closeLot() {
+    if (!jwtToken) {
+        logMessage('Please login first', 'error');
+        return;
+    }
+
+    const lotId = document.getElementById('actionLotId').value;
+    if (!lotId) {
+        logMessage('Please enter Lot ID', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`http://localhost:8080/api/lots/${lotId}/close`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${jwtToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to close lot: ${response.status}`);
+        }
+
+        const lot = await response.json();
+        document.getElementById('lotActionStatus').textContent = `Lot ${lotId} closed successfully`;
+        logMessage(`Lot ${lotId} has been closed. Winner: ${lot.winner?.username || 'none'}`, 'info');
+        loadLots(); // Обновляем список лотов
+    } catch (error) {
+        document.getElementById('lotActionStatus').textContent = 'Failed to close lot';
+        logMessage(`Error closing lot: ${error.message}`, 'error');
+    }
+}
+
 </script>
 </body>
 </html>

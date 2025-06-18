@@ -24,6 +24,8 @@ import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 import org.springframework.web.filter.OncePerRequestFilter
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter
+import org.springframework.security.web.context.DelegatingSecurityContextRepository
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository
 
 @Configuration
 @EnableWebSecurity
@@ -87,15 +89,10 @@ class SecurityConfig(private val jwtTokenProvider: JwtTokenProvider,
             response: HttpServletResponse,
             filterChain: FilterChain
         ) {
-            logger.info("Incoming request to: ${request.requestURI}")
-            logger.info("Headers: ${request.headerNames.toList()}")
-
             val authHeader = request.getHeader("Authorization")
-            logger.info("Auth header: $authHeader")
 
             try {
                 val token = extractToken(request)
-                println("Token: $token")
                 if (token != null && jwtTokenProvider.validateToken(token)) {
                     val auth = jwtTokenProvider.getAuthentication(token, userRepository)
                     SecurityContextHolder.getContext().authentication = auth
@@ -112,30 +109,6 @@ class SecurityConfig(private val jwtTokenProvider: JwtTokenProvider,
             return if (header?.startsWith("Bearer ") == true) {
                 header.substring(7)
             } else null
-        }
-    }
-
-    @Component
-    class RequestLoggingFilter : OncePerRequestFilter() {
-        override fun doFilterInternal(
-            request: HttpServletRequest,
-            response: HttpServletResponse,
-            filterChain: FilterChain
-        ) {
-            println("\n=== Request Debug ===")
-            println("Method: ${request.method}")
-            println("URL: ${request.requestURI}")
-            println("Content-Type: ${request.contentType}")
-            println("=== End Request Debug ===\n")
-
-            try {
-                println("Before chain: ${request.requestURI}")
-                filterChain.doFilter(request, response)
-                println("After chain: ${request.requestURI}")
-            } catch (e: Exception) {
-                println("Filter error: ${e.javaClass.simpleName} - ${e.message}")
-                throw e
-            }
         }
     }
 

@@ -25,5 +25,9 @@ data class Lot(
     @JoinColumn(name = "owner_id")
     val owner: User,
 
+    @ManyToOne
+    @JoinColumn(name = "winner_id")
+    var winner: User? = null,
+
     var endTime: Instant? = null
 )
