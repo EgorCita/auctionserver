@@ -68,6 +68,7 @@ class AuctionService(
         if (lot.status != "CLOSING") throw IllegalStateException("Lot is not in finalizing state")
 
         lot.status = "SOLD"
+        lot.endTime = Instant.now()
         return lotRepository.save(lot)
     }
 
