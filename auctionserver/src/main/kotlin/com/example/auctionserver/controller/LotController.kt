@@ -30,13 +30,13 @@ class LotController(
         return ResponseEntity.ok(auctionService.getAllLots())
     }
 
-    @GetMapping("/{userId}/won")
+    @GetMapping("/{username}/won")
     fun lotsWon(
-        @PathVariable userId: Long,
+        @PathVariable username: String,
     ): ResponseEntity<List<Lot>> {
-        println("getAllLotsWhereUserWon; userId = $userId")
-        println(auctionService.getAllLotsWhereUserWon(userId))
-        return ResponseEntity.ok(auctionService.getAllLotsWhereUserWon(userId))
+        println("getAllLotsWhereUserWon; userId = $username")
+        println(auctionService.getAllLotsWhereUserWon(username))
+        return ResponseEntity.ok(auctionService.getAllLotsWhereUserWon(username))
     }
 
     @PostMapping("/")
