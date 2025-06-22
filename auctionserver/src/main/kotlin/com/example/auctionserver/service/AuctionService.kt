@@ -21,6 +21,7 @@ class AuctionService(
     fun createLot(lotDto: CreateLotDto, owner: User): Lot {
         val lot = Lot(
             title = lotDto.title,
+            imageUrl = lotDto.imageUrl,
             description = lotDto.description,
             startPrice = lotDto.startPrice,
             currentPrice = lotDto.startPrice,
@@ -72,6 +73,10 @@ class AuctionService(
 
     fun getAllLots() : List<Lot> {
         return lotRepository.findAll()
+    }
+
+    fun getAllLotsWhereUserWon(userId: Long) : List<Lot> {
+        return lotRepository.findByStatusAndWinner("SOLD", userRepository.findById(userId).orElseThrow { NoSuchElementException("User not found") })
     }
 
     fun getAllBidsInLot(lotId: Long) : List<Bid> {

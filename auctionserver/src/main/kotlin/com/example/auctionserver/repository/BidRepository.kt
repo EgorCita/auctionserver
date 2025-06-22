@@ -6,5 +6,4 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface BidRepository : JpaRepository<Bid, Long> {
     fun findByLot(lot: Lot): List<Bid>
-    fun findTopByLotOrderByAmountDesc(lot: Lot): Bid?
 }

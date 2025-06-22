@@ -16,6 +16,7 @@ data class Lot(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
     val title: String,
+    val imageUrl: String,
     val description: String? = null,
     val startPrice: BigDecimal,
     var currentPrice: BigDecimal,

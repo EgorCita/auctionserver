@@ -20,8 +20,63 @@
         .tab.active { background: #4CAF50; color: white; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .lot-item { border: 1px solid #eee; padding: 10px; margin: 5px 0; border-radius: 4px; }
-        .lot-list { max-height: 300px; overflow-y: auto; margin: 10px 0; }
+        .lot-item {
+    border: 1px solid #eee;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+    display: flex;
+    gap: 15px;
+}
+
+.lot-content {
+    display: flex;
+    width: 100%;
+}
+
+.lot-image-container {
+    width: 150px;
+    height: 150px;
+    flex-shrink: 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+}
+
+.lot-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.no-image {
+    width: 150px;
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-style: italic;
+}
+
+.lot-details {
+    flex-grow: 1;
+}
+
+@media (max-width: 600px) {
+    .lot-content {
+        flex-direction: column;
+    }
+    
+    .lot-image-container {
+        width: 100%;
+        height: 200px;
+    }
+}
     </style>
 </head>
 <body>
@@ -55,12 +110,12 @@
 <div class="panel">
     <h2>Lot Management</h2>
     <div>
-        <h3>Create New Lot</h3>
-        <input type="text" id="lotTitle" placeholder="Title">
-        <textarea id="lotDescription" placeholder="Description"></textarea>
-        <input type="number" id="lotStartPrice" placeholder="Start Price" value="100">
-        <input type="number" id="lotDuration" placeholder="Duration in minutes" value="10">
-        <button class="primary" onclick="createLot()">Create Lot</button>
+    <h3>Create New Lot</h3>
+    <input type="text" id="lotTitle" placeholder="Title">
+    <input type="url" id="lotImageUrl" placeholder="Image URL">
+    <textarea id="lotDescription" placeholder="Description"></textarea>
+    <input type="number" id="lotStartPrice" placeholder="Start Price" value="100">
+    <button class="primary" onclick="createLot()">Create Lot</button>
     </div>
     
     <div>
@@ -239,67 +294,97 @@
     }
 
     function renderLotList(lots) {
-        const lotListDiv = document.getElementById('lotList');
-        lotListDiv.innerHTML = '';
+    const lotListDiv = document.getElementById('lotList');
+    lotListDiv.innerHTML = '';
 
-        if (lots.length === 0) {
-            lotListDiv.innerHTML = '<p>No lots available</p>';
-            return;
-        }
+    if (lots.length === 0) {
+        lotListDiv.innerHTML = '<p>No lots available</p>';
+        return;
+    }
 
-        lots.forEach(lot => {
-            const lotDiv = document.createElement('div');
-            lotDiv.className = 'lot-item';
-            lotDiv.innerHTML = `
-                <h4>${lot.title} (ID: ${lot.id})</h4>
-                <p>${lot.description}</p>
-                <p>Start Price: ${lot.startPrice} | Current Price: ${lot.currentPrice}</p>
-                <p>Status: ${lot.status} | End Time: ${new Date(lot.endTime).toLocaleString()}</p>
-                <p>Owner: ${lot.owner}</p>
-            `;
-            lotListDiv.appendChild(lotDiv);
-        });
+    lots.forEach(lot => {
+        const lotDiv = document.createElement('div');
+        lotDiv.className = 'lot-item';
+        
+        // Добавляем контейнер для изображения (если есть)
+        const imageHtml = lot.imageUrl 
+            ? `<div class="lot-image-container">
+                  <img src="${lot.imageUrl}" alt="${lot.title}" class="lot-image" onerror="this.style.display='none'">
+               </div>`
+            : '<div class="no-image">No image</div>';
+        
+        lotDiv.innerHTML = `
+            <div class="lot-content">
+                ${imageHtml}
+                <div class="lot-details">
+                    <h4>${lot.title} (ID: ${lot.id})</h4>
+                    <p>${lot.description}</p>
+                    <p>Start Price: ${lot.startPrice} | Current Price: ${lot.currentPrice}</p>
+                    <p>Status: ${lot.status} | End Time: ${new Date(lot.endTime).toLocaleString()}</p>
+                    <p>Owner: ${lot.owner}</p>
+                </div>
+            </div>
+        `;
+        lotListDiv.appendChild(lotDiv);
+    });
     }
 
     async function createLot() {
-        if (!jwtToken) {
-            logMessage('Please login first', 'error');
-            return;
+    if (!jwtToken) {
+        logMessage('Please login first', 'error');
+        return;
+    }
+
+    const title = document.getElementById('lotTitle').value;
+    const imageUrl = document.getElementById('lotImageUrl').value;
+    const description = document.getElementById('lotDescription').value;
+    const startPrice = parseFloat(document.getElementById('lotStartPrice').value);
+
+    if (!title || !description || isNaN(startPrice)) {
+        logMessage('Please fill all fields with valid values', 'error');
+        return;
+    }
+
+    // Необязательная валидация URL (можно убрать если не нужно)
+    if (imageUrl && !isValidUrl(imageUrl)) {
+        logMessage('Please enter a valid image URL', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('http://localhost:8080/api/lots/', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({
+                title,
+                imageUrl: imageUrl || "",
+                description,
+                startPrice
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to create lot: ${response.status}`);
         }
 
-        const title = document.getElementById('lotTitle').value;
-        const description = document.getElementById('lotDescription').value;
-        const startPrice = parseFloat(document.getElementById('lotStartPrice').value);
-        const duration = parseInt(document.getElementById('lotDuration').value);
+        const createdLot = await response.json();
+        logMessage(`Lot created successfully: ${createdLot.title} (ID: ${createdLot.id})`, 'info');
+        loadLots();
+    } catch (error) {
+        logMessage(`Error creating lot: ${error.message}`, 'error');
+    }
+    }
 
-        if (!title || !description || isNaN(startPrice) || isNaN(duration)) {
-            logMessage('Please fill all fields with valid values', 'error');
-            return;
-        }
-
+    // Вспомогательная функция для проверки URL (опционально)
+    function isValidUrl(string) {
         try {
-            const response = await fetch('http://localhost:8080/api/lots/', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${jwtToken}`
-                },
-                body: JSON.stringify({
-                    title,
-                    description,
-                    startPrice
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to create lot: ${response.status}`);
-            }
-
-            const createdLot = await response.json();
-            logMessage(`Lot created successfully: ${createdLot.title} (ID: ${createdLot.id})`, 'info');
-            loadLots(); // Refresh the lot list
-        } catch (error) {
-            logMessage(`Error creating lot: ${error.message}`, 'error');
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
         }
     }
 
