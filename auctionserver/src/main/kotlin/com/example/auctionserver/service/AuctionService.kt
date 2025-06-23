@@ -7,7 +7,6 @@ import com.example.auctionserver.model.entity.User
 import com.example.auctionserver.repository.BidRepository
 import com.example.auctionserver.repository.LotRepository
 import com.example.auctionserver.repository.UserRepository
-import org.hibernate.type.NullType
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.time.Instant
@@ -16,7 +15,8 @@ import java.time.Instant
 class AuctionService(
     private val bidRepository: BidRepository,
     private val lotRepository: LotRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val lotClosingScheduler: LotClosingScheduler,
 ) {
     fun createLot(lotDto: CreateLotDto, owner: User): Lot {
         val lot = Lot(
@@ -34,7 +34,7 @@ class AuctionService(
     fun placeBid(lotId: Long, amount: BigDecimal, bidder: User): Lot {
         val lot = lotRepository.findById(lotId).orElseThrow { NoSuchElementException("Lot not found") }
 
-        if (lot.status != "OPEN") throw IllegalStateException("Lot is not open for bidding")
+        if (lot.status == "SOLD") throw IllegalStateException("Lot is not open for bidding")
         if (amount <= lot.currentPrice) throw IllegalArgumentException("Bid must be higher than current price")
 
         val bid = Bid(
@@ -44,6 +44,12 @@ class AuctionService(
             timestamp = Instant.now()
         )
         bidRepository.save(bid)
+
+        if (lot.status == "CLOSING") {
+            lotClosingScheduler.cancelScheduledClosing(lotId)
+            lot.status = "OPEN"
+            lot.endTime = null
+        }
 
         lot.currentPrice = amount
         lot.winner = bidder
@@ -56,19 +62,27 @@ class AuctionService(
         if (lot.owner.id != owner.id) throw IllegalStateException("Only owner can finalize the lot")
         if (lot.status != "OPEN") throw IllegalStateException("Lot must be open to finalize")
 
+        val endTime = Instant.now().plusSeconds(60) // 60 seconds to close
+        lotClosingScheduler.scheduleLotClosing(lotId, owner, endTime)
+
         lot.status = "CLOSING"
-        lot.endTime = Instant.now().plusSeconds(60) // 60 seconds to close
+        lot.endTime = endTime
         return lotRepository.save(lot)
     }
 
-    fun closeLot(lotId: Long, owner: User): Lot {
+    fun closeLot(lotId: Long, owner: User, forceClose: Boolean = false): Lot {
         val lot = lotRepository.findById(lotId).orElseThrow { NoSuchElementException("Lot not found") }
 
         if (lot.owner.id != owner.id) throw IllegalStateException("Only owner can close the lot")
         if (lot.status != "CLOSING") throw IllegalStateException("Lot is not in finalizing state")
 
+        if (forceClose) {
+            lotClosingScheduler.cancelScheduledClosing(lotId)
+        }
+
         lot.status = "SOLD"
         lot.endTime = Instant.now()
+
         return lotRepository.save(lot)
     }
 
@@ -76,8 +90,8 @@ class AuctionService(
         return lotRepository.findAll()
     }
 
-    fun getAllLotsWhereUserWon(username: String) : List<Lot> {
-        return lotRepository.findByStatusAndWinner("SOLD", userRepository.findByUsername(username) ?: throw { NoSuchElementException("User not found") } as Throwable)
+    fun getAllLotsWhereUserWon(user: User) : List<Lot> {
+        return lotRepository.findByStatusAndWinner("SOLD", user)
     }
 
     fun getAllBidsInLot(lotId: Long) : List<Bid> {

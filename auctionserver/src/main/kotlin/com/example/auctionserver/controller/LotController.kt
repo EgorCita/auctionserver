@@ -30,13 +30,14 @@ class LotController(
         return ResponseEntity.ok(auctionService.getAllLots())
     }
 
-    @GetMapping("/{username}/won")
+    @GetMapping("/me")
     fun lotsWon(
         @PathVariable username: String,
+        user: User
     ): ResponseEntity<List<Lot>> {
-        println("getAllLotsWhereUserWon; userId = $username")
-        println(auctionService.getAllLotsWhereUserWon(username))
-        return ResponseEntity.ok(auctionService.getAllLotsWhereUserWon(username))
+        println("getAllLotsWhereUserWon; user = $user")
+        println(auctionService.getAllLotsWhereUserWon(user))
+        return ResponseEntity.ok(auctionService.getAllLotsWhereUserWon(user))
     }
 
     @PostMapping("/")
@@ -59,15 +60,13 @@ class LotController(
     @PostMapping("/{lotId}/finalize")
     fun finalizeLot(@PathVariable lotId: Long, user: User): ResponseEntity<Lot> {
         val lot = auctionService.finalizeLot(lotId, user)
-        lotClosingScheduler.scheduleLotClosing(lotId, user, lot.endTime ?: Instant.now().plusSeconds(60))
         notifyLotUpdate(lot)
         return ResponseEntity.ok(lot)
     }
 
     @PostMapping("/{lotId}/close")
     fun closeLot(@PathVariable lotId: Long, user: User): ResponseEntity<Lot> {
-        val lot = auctionService.closeLot(lotId, user)
-        lotClosingScheduler.cancelScheduledClosing(lotId)
+        val lot = auctionService.closeLot(lotId, user, true)
         notifyLotUpdate(lot)
         return ResponseEntity.ok(lot)
     }
