@@ -65,7 +65,7 @@ class LotController(
 
     @PostMapping("/{lotId}/close")
     fun closeLot(@PathVariable lotId: Long, user: User): ResponseEntity<Lot> {
-        val lot = auctionService.closeLot(lotId, user, true)
+        val lot = auctionService.closeLot(lotId, user)
         notifyLotUpdate(lot)
         return ResponseEntity.ok(lot)
     }

@@ -1,6 +1,7 @@
 package com.example.auctionserver.service
 
 import com.example.auctionserver.model.entity.User
+import com.example.auctionserver.repository.LotRepository
 import org.slf4j.LoggerFactory
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.scheduling.TaskScheduler
@@ -12,7 +13,7 @@ import java.util.concurrent.ScheduledFuture
 @Service
 class LotClosingScheduler(
     private val taskScheduler: TaskScheduler,
-    private val auctionService: AuctionService,
+    private val lotRepository: LotRepository,
     private val simpMessagingTemplate: SimpMessagingTemplate
 ) {
     private val scheduledTasks = ConcurrentHashMap<Long, ScheduledFuture<*>>()
@@ -28,7 +29,16 @@ class LotClosingScheduler(
 
         val task = Runnable {
             try {
-                val lot = auctionService.closeLot(lotId, user)
+                val lot = lotRepository.findById(lotId).orElseThrow { NoSuchElementException("Lot not found") }
+
+                if (lot.owner.id != user.id) throw IllegalStateException("Only owner can close the lot")
+                if (lot.status != "CLOSING") throw IllegalStateException("Lot is not in finalizing state")
+
+                lot.status = "SOLD"
+                lot.endTime = Instant.now()
+
+                lotRepository.save(lot)
+
                 simpMessagingTemplate.convertAndSend("/topic/lot/$lotId", lot)
                 scheduledTasks.remove(lotId)
             } catch (ex: Exception) {

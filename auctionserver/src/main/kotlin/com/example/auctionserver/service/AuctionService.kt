@@ -70,15 +70,13 @@ class AuctionService(
         return lotRepository.save(lot)
     }
 
-    fun closeLot(lotId: Long, owner: User, forceClose: Boolean = false): Lot {
+    fun closeLot(lotId: Long, owner: User): Lot {
         val lot = lotRepository.findById(lotId).orElseThrow { NoSuchElementException("Lot not found") }
 
         if (lot.owner.id != owner.id) throw IllegalStateException("Only owner can close the lot")
         if (lot.status != "CLOSING") throw IllegalStateException("Lot is not in finalizing state")
 
-        if (forceClose) {
-            lotClosingScheduler.cancelScheduledClosing(lotId)
-        }
+        lotClosingScheduler.cancelScheduledClosing(lotId)
 
         lot.status = "SOLD"
         lot.endTime = Instant.now()
