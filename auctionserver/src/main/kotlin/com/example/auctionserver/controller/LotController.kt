@@ -32,7 +32,6 @@ class LotController(
 
     @GetMapping("/me")
     fun lotsWon(
-        @PathVariable username: String,
         user: User
     ): ResponseEntity<List<Lot>> {
         println("getAllLotsWhereUserWon; user = $user")
