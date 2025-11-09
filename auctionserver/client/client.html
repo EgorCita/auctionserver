@@ -121,6 +121,10 @@
     <div>
         <h3>Lot List</h3>
         <button onclick="loadLots()">Refresh Lots</button>
+        <div class="search-container">
+            <input type="text" id="searchQuery" placeholder="Search by description...">
+            <button onclick="searchLots()">Search</button>
+        </div>
         <div id="lotList" class="lot-list"></div>
     </div>
 </div>
@@ -290,6 +294,36 @@
             logMessage('Lots loaded successfully', 'info');
         } catch (error) {
             logMessage(`Error loading lots: ${error.message}`, 'error');
+        }
+    }
+
+    async function searchLots() {
+        if (!jwtToken) {
+            logMessage('Please login first', 'error');
+            return;
+        }
+
+        const searchQuery = document.getElementById('searchQuery').value.trim();
+        
+        if (!searchQuery) {
+            logMessage('Please enter search query', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:8080/api/lots/search?query=${encodeURIComponent(searchQuery)}`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to search lots: ${response.status}`);
+            }
+
+            const lots = await response.json();
+            renderLotList(lots);
+            logMessage(`Found ${lots.length} lots for query: "${searchQuery}"`, 'info');
+        } catch (error) {
+            logMessage(`Error searching lots: ${error.message}`, 'error');
         }
     }
 

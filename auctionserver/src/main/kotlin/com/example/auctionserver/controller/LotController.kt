@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
 
@@ -28,6 +29,12 @@ class LotController(
     fun lots(): ResponseEntity<List<Lot>> {
         println("Calling list of lots")
         return ResponseEntity.ok(auctionService.getAllLots())
+    }
+
+    @GetMapping("/search")
+    fun searchLots(@RequestParam query: String): ResponseEntity<List<Lot>> {
+        println("Calling searching suitable lots")
+        return ResponseEntity.ok(auctionService.getSimilarLots(query))
     }
 
     @GetMapping("/me")

@@ -48,6 +48,14 @@ dependencies {
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 
+	// For embeddings
+	implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+	implementation("io.ktor:ktor-client-core:2.3.5")
+	implementation("io.ktor:ktor-client-cio:2.3.5")
+	implementation("io.ktor:ktor-client-content-negotiation:2.3.5")
+	implementation("io.ktor:ktor-serialization-jackson:2.3.5")
+
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")

@@ -24,7 +24,6 @@ class LotClosingScheduler(
     }
 
     fun scheduleLotClosing(lotId: Long, user: User, endTime: Instant) {
-        // Отменяем предыдущую задачу, если была
         scheduledTasks[lotId]?.cancel(true)
 
         val task = Runnable {
